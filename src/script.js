@@ -973,7 +973,7 @@ globalConsoleContainerEl, GlobalStorage, html2canvas
 			'\n';
 
 		contents +=
-			'<script src="' + getLibararyURL('lib/screenlog.js') + '"></script>';
+			'<script src="' + location.href + 'lib/screenlog.js' + '"></script>';
 
 		if (jsMode === JsModes.ES6) {
 			contents +=
