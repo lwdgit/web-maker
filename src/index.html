@@ -634,5 +634,14 @@
 		<script src="storage.js"></script>
 		<script src="script.js"></script>
 		<script src="dropdown.js"></script>
+		<script>
+				if (window.location.protocol === 'https:' && 'serviceWorker' in navigator) {
+						navigator.serviceWorker.register('./sw.js', {
+								scope: window.location.pathname
+						}).catch(e => {
+								console.log(e)
+						})
+				}
+		</script>
 	</body>
 </html>
