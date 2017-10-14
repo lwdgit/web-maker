@@ -994,59 +994,6 @@ globalConsoleContainerEl, GlobalStorage, html2canvas
 		return contents;
 	}
 
-	function writeFile(name, blob, cb) {
-		var fileWritten = false;
-		function getErrorHandler(type) {
-			return function() {
-				utils.log(arguments);
-				trackEvent('fn', 'error', type);
-				// When there are too many write errors, show a message.
-				writeFile.errorCount = (writeFile.errorCount || 0) + 1;
-				if (writeFile.errorCount === 4) {
-					setTimeout(function() {
-						alert(
-							"Oops! Seems like your preview isn't updating. Please try the following steps until it fixes:\n - Refresh Web Maker\n - Restart browser\n - Update browser\n - Reinstall Web Maker (don't forget to export all your creations from saved items pane (click the OPEN button) before reinstalling)\n\nIf nothing works, please tweet out to @webmakerApp."
-						);
-						trackEvent('ui', 'writeFileMessageSeen');
-					}, 1000);
-				}
-			};
-		}
-
-		// utils.log('writing file ', name);
-		window.webkitRequestFileSystem(
-			window.TEMPORARY,
-			1024 * 1024 * 5,
-			function(fs) {
-				fs.root.getFile(
-					name,
-					{ create: true },
-					function(fileEntry) {
-						fileEntry.createWriter(fileWriter => {
-							function onWriteComplete() {
-								if (fileWritten) {
-									// utils.log('file written ', name);
-									return cb();
-								}
-								fileWritten = true;
-								// Set the write pointer to starting of file
-								fileWriter.seek(0);
-								fileWriter.write(blob);
-								return false;
-							}
-							fileWriter.onwriteend = onWriteComplete;
-							// Empty the file contents
-							fileWriter.truncate(0);
-							// utils.log('truncating file ', name);
-						}, getErrorHandler('createWriterFail'));
-					},
-					getErrorHandler('getFileFail')
-				);
-			},
-			getErrorHandler('webkitRequestFileSystemFail')
-		);
-	}
-
 	function createPreviewFile(html, css, js) {
 		var blobjs = new Blob([js], { type: 'text/plain;charset=UTF-8' });
 		var contents = getCompleteHtml(html, css, blobjs);
@@ -1058,16 +1005,10 @@ globalConsoleContainerEl, GlobalStorage, html2canvas
 			trackEvent.hasTrackedCode = true;
 		}
 
-		// we need to store user script in external JS file to prevent inline-script
-		// CSP from affecting it.
-		writeFile('script.js', blobjs, function() {
-			writeFile('preview.html', blob, function() {
-				frame.src = URL.createObjectURL(blob);
-				if (scope.detachedWindow) {
-					scope.detachedWindow.postMessage(frame.src, '*');
-				}
-			});
-		});
+		frame.src = URL.createObjectURL(blob);
+		if (scope.detachedWindow) {
+			scope.detachedWindow.postMessage(frame.src, '*');
+		}
 	}
 
 	scope.setPreviewContent = function(isForced) {
@@ -1441,115 +1382,6 @@ globalConsoleContainerEl, GlobalStorage, html2canvas
 		e.preventDefault();
 	};
 
-	function saveScreenshot(dataURI) {
-		// convert base64 to raw binary data held in a string
-		// doesn't handle URLEncoded DataURIs
-		var byteString = atob(dataURI.split(',')[1]);
-
-		// separate out the mime component
-		var mimeString = dataURI
-			.split(',')[0]
-			.split(':')[1]
-			.split(';')[0];
-
-		// write the bytes of the string to an ArrayBuffer
-		var ab = new ArrayBuffer(byteString.length);
-		var ia = new Uint8Array(ab);
-		for (var i = 0; i < byteString.length; i++) {
-			ia[i] = byteString.charCodeAt(i);
-		}
-
-		// create a blob for writing to a file
-		var blob = new Blob([ab], { type: mimeString });
-		var size = blob.size + 1024 / 2;
-
-		var d = new Date();
-		var fileName = [
-			'web-maker-screenshot',
-			d.getFullYear(),
-			d.getMonth() + 1,
-			d.getDate(),
-			d.getHours(),
-			d.getMinutes(),
-			d.getSeconds()
-		].join('-');
-		fileName += '.png';
-
-		function onWriteEnd() {
-			// var filePath =
-			// 	'filesystem:chrome-extension://' +
-			// 	chrome.i18n.getMessage('@@extension_id') +
-			// 	'/temporary/' +
-			// 	fileName;
-			// chrome.downloads.download(
-			// 	{
-			// 		url: filePath
-			// 	},
-			// 	function() {
-			// 		// If there was an error, just open the screenshot in a tab.
-			// 		// This happens in incognito mode where extension cannot access filesystem.
-			// 		if (chrome.runtime.lastError) {
-			// 			window.open(filePath);
-			// 		}
-			// 	}
-			// );
-		}
-
-		function errorHandler(e) {
-			utils.log(e);
-		}
-
-		// create a blob for writing to a file
-		window.webkitRequestFileSystem(
-			window.TEMPORARY,
-			size,
-			fs => {
-				fs.root.getFile(
-					fileName,
-					{ create: true },
-					fileEntry => {
-						fileEntry.createWriter(fileWriter => {
-							fileWriter.onwriteend = onWriteEnd;
-							fileWriter.write(blob);
-						}, errorHandler);
-					},
-					errorHandler
-				);
-			},
-			errorHandler
-		);
-	}
-
-	function handleDownloadsPermission() {
-		var d = deferred();
-		// chrome.permissions.contains(
-		// 	{
-		// 		permissions: ['downloads']
-		// 	},
-		// 	function(result) {
-		// 		if (result) {
-		// 			d.resolve();
-		// 		} else {
-		// 			chrome.permissions.request(
-		// 				{
-		// 					permissions: ['downloads']
-		// 				},
-		// 				function(granted) {
-		// 					if (granted) {
-		// 						trackEvent('fn', 'downloadsPermGiven');
-		// 						d.resolve();
-		// 					} else {
-		// 						d.reject();
-		// 					}
-		// 				}
-		// 			);
-		// 		}
-		// 	}
-		// );
-		setTimeout(d.resolve, 1);
-		return d.promise;
-	}
-
 	scope.takeScreenshot = function(e) {
 		handleDownloadsPermission().then(() => {
 			// Hide tooltips so that they don't show in the screenshot
@@ -1562,45 +1394,11 @@ globalConsoleContainerEl, GlobalStorage, html2canvas
 					var a = document.createElement('a')
 					a.download = titleInput.value
 					a.href = canvas.toDataURL()
+					document.body.appendChild(a);
 					a.click()
+					a.remove()
 				}
 			});
-			// function onImgLoad(image) {
-			// 	var c = document.createElement('canvas');
-			// 	var iframeBounds = frame.getBoundingClientRect();
-			// 	c.width = iframeBounds.width;
-			// 	c.height = iframeBounds.height;
-			// 	var ctx = c.getContext('2d');
-			// 	ctx.drawImage(
-			// 		image,
-			// 		iframeBounds.left,
-			// 		iframeBounds.top,
-			// 		iframeBounds.width,
-			// 		iframeBounds.height,
-			// 		0,
-			// 		0,
-			// 		iframeBounds.width,
-			// 		iframeBounds.height
-			// 	);
-			// 	image.removeEventListener('load', onImgLoad);
-			// 	saveScreenshot(c.toDataURL());
-			// }
-
-			// setTimeout(() => {
-			// 	// chrome.tabs.captureVisibleTab(
-			// 	// 	null,
-			// 	// 	{ format: 'png', quality: 100 },
-			// 	// 	function(dataURI) {
-			// 	// 		s.remove();
-			// 	// 		if (dataURI) {
-			// 	// 			var image = new Image();
-			// 	// 			image.src = dataURI;
-			// 	// 			image.addEventListener('load', () => onImgLoad(image, dataURI));
-			// 	// 		}
-			// 	// 	}
-			// 	// );
-			// }, 50);
-
 			trackEvent('ui', 'takeScreenshotBtnClick');
 		});
 
