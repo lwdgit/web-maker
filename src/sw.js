@@ -1501,7 +1501,7 @@ const PWA_OPTION = {
 toolbox.options.cache.name = CACHE_NAME;
 toolbox.router.default = toolbox.networkFirst;
 toolbox.options.successResponses = /^200$/;
-toolbox.router.get(/.*\.(js|gif|png|svg|jpg|jpeg|css|woff|ttf|svg|woff2)$/, toolbox.cacheFirst);
+toolbox.router.get(/.*\.(js|gif|png|svg|jpg|jpeg|css|woff|ttf|svg|woff2)$/, toolbox.fastest);
 
 // Claim all clients and delete old caches that are no longer needed.
 self.addEventListener('activate', event => {
