@@ -7,11 +7,15 @@ onboardModal, settingsModal, notificationsBtn, onboardShowInTabOptionBtn, editor
 onboardDontShowInTabOptionBtn, TextareaAutoComplete, savedItemCountEl, indentationSizeValueEl,
 runBtn, searchInput, consoleEl, consoleLogEl, logCountEl, fontStyleTag, fontStyleTemplate,
 customEditorFontInput, cssSettingsModal, cssSettingsBtn, acssSettingsTextarea,
-globalConsoleContainerEl
+globalConsoleContainerEl, GlobalStorage, html2canvas
 */
 /* eslint-disable no-extra-semi */
 (function(alertsService) {
 	/* eslint-enable no-extra-semi */
+	var getLibararyURL = function(url) {
+		return './lib/' + url;
+	};
+
 	var scope = scope || {};
 	var version = '2.9.1';
 
@@ -140,7 +144,7 @@ globalConsoleContainerEl
 		addLibraryBtn = $('#js-add-library-btn'),
 		externalJsTextarea = $('#js-external-js'),
 		externalCssTextarea = $('#js-external-css');
-
+	onboardModal = document.createElement('span') // fake
 	scope.cm = {};
 	scope.frame = frame;
 	scope.demoFrameDocument =
@@ -282,7 +286,7 @@ globalConsoleContainerEl
 		const d = deferred();
 		var obj = {};
 		obj[setting] = value;
-		chrome.storage.local.set(obj, d.resolve);
+		GlobalStorage.local.set(obj, d.resolve);
 		return d.promise;
 	}
 
@@ -302,13 +306,13 @@ globalConsoleContainerEl
 		});
 		// Push into the items hash if its a new item being saved
 		if (isNewItem) {
-			chrome.storage.local.get(
+			GlobalStorage.local.get(
 				{
 					items: {}
 				},
 				function(result) {
 					result.items[currentItem.id] = true;
-					chrome.storage.local.set({
+					GlobalStorage.local.set({
 						items: result.items
 					});
 				}
@@ -453,7 +457,7 @@ globalConsoleContainerEl
 	 */
 	function fetchItems(shouldSaveGlobally) {
 		var d = deferred();
-		chrome.storage.local.get('items', function(result) {
+		GlobalStorage.local.get('items', function(result) {
 			var itemIds = Object.getOwnPropertyNames(result.items || {}),
 				items = [];
 			if (!itemIds.length) {
@@ -464,7 +468,7 @@ globalConsoleContainerEl
 			trackEvent('fn', 'fetchItems', itemIds.length);
 			for (let i = 0; i < itemIds.length; i++) {
 				/* eslint-disable no-loop-func */
-				chrome.storage.local.get(itemIds[i], function(itemResult) {
+				GlobalStorage.local.get(itemIds[i], function(itemResult) {
 					if (shouldSaveGlobally) {
 						savedItems[itemIds[i]] = itemResult[itemIds[i]];
 					}
@@ -552,20 +556,20 @@ globalConsoleContainerEl
 
 		itemTile.remove();
 		// Remove from items list
-		chrome.storage.local.get(
+		GlobalStorage.local.get(
 			{
 				items: {}
 			},
 			function(result) {
 				delete result.items[itemId];
-				chrome.storage.local.set({
+				GlobalStorage.local.set({
 					items: result.items
 				});
 			}
 		);
 
 		// Remove individual item too.
-		chrome.storage.local.remove(itemId, function() {
+		GlobalStorage.local.remove(itemId, function() {
 			alertsService.add('Item removed.');
 			// This item is open in the editor. Lets open a new one.
 			if (currentItem.id === itemId) {
@@ -969,27 +973,21 @@ globalConsoleContainerEl
 			'\n';
 
 		contents +=
-			'<script src="' +
-			chrome.extension.getURL('lib/screenlog.js') +
-			'"></script>';
+			'<script src="' + getLibararyURL('lib/screenlog.js') + '"></script>';
 
 		if (jsMode === JsModes.ES6) {
 			contents +=
 				'<script src="' +
-				chrome.extension.getURL('lib/babel-polyfill.min.js') +
+				getLibararyURL('lib/babel-polyfill.min.js') +
 				'"></script>';
 		}
 
 		if (js) {
-			contents += '<script>\n' + js + '\n//# sourceURL=userscript.js';
-		} else {
-			contents +=
-				'<script src="' +
-				'filesystem:chrome-extension://' +
-				chrome.i18n.getMessage('@@extension_id') +
-				'/temporary/' +
-				'script.js' +
-				'">';
+			if (js instanceof Blob) {
+				contents += '<script src="' + window.URL.createObjectURL(js) + '">';
+			} else {
+				contents += '<script>\n' + js + '\n//# sourceURL=userscript.js';
+			}
 		}
 		contents += '\n</script>\n</body>\n</html>';
 
@@ -1050,9 +1048,9 @@ globalConsoleContainerEl
 	}
 
 	function createPreviewFile(html, css, js) {
-		var contents = getCompleteHtml(html, css);
-		var blob = new Blob([contents], { type: 'text/plain;charset=UTF-8' });
 		var blobjs = new Blob([js], { type: 'text/plain;charset=UTF-8' });
+		var contents = getCompleteHtml(html, css, blobjs);
+		var blob = new Blob([contents], { type: 'text/html;charset=UTF-8' });
 
 		// Track if people have written code.
 		if (!trackEvent.hasTrackedCode && (html || css || js)) {
@@ -1064,11 +1062,7 @@ globalConsoleContainerEl
 		// CSP from affecting it.
 		writeFile('script.js', blobjs, function() {
 			writeFile('preview.html', blob, function() {
-				frame.src =
-					'filesystem:chrome-extension://' +
-					chrome.i18n.getMessage('@@extension_id') +
-					'/temporary/' +
-					'preview.html';
+				frame.src = URL.createObjectURL(blob);
 				if (scope.detachedWindow) {
 					scope.detachedWindow.postMessage(frame.src, '*');
 				}
@@ -1383,13 +1377,13 @@ globalConsoleContainerEl
 		}
 		if (mergedItemCount) {
 			// save new items
-			chrome.storage.local.set(toMergeItems, function() {
+			GlobalStorage.local.set(toMergeItems, function() {
 				alertsService.add(
 					mergedItemCount + ' creations imported successfully.'
 				);
 			});
 			// Push in new item IDs
-			chrome.storage.local.get(
+			GlobalStorage.local.get(
 				{
 					items: {}
 				},
@@ -1398,7 +1392,7 @@ globalConsoleContainerEl
 					for (var id in toMergeItems) {
 						result.items[id] = true;
 					}
-					chrome.storage.local.set({
+					GlobalStorage.local.set({
 						items: result.items
 					});
 					trackEvent('fn', 'itemsImported', mergedItemCount);
@@ -1453,7 +1447,10 @@ globalConsoleContainerEl
 		var byteString = atob(dataURI.split(',')[1]);
 
 		// separate out the mime component
-		var mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+		var mimeString = dataURI
+			.split(',')[0]
+			.split(':')[1]
+			.split(';')[0];
 
 		// write the bytes of the string to an ArrayBuffer
 		var ab = new ArrayBuffer(byteString.length);
@@ -1479,24 +1476,23 @@ globalConsoleContainerEl
 		fileName += '.png';
 
 		function onWriteEnd() {
-			var filePath =
-				'filesystem:chrome-extension://' +
-				chrome.i18n.getMessage('@@extension_id') +
-				'/temporary/' +
-				fileName;
-
-			chrome.downloads.download(
-				{
-					url: filePath
-				},
-				function() {
-					// If there was an error, just open the screenshot in a tab.
-					// This happens in incognito mode where extension cannot access filesystem.
-					if (chrome.runtime.lastError) {
-						window.open(filePath);
-					}
-				}
-			);
+			// var filePath =
+			// 	'filesystem:chrome-extension://' +
+			// 	chrome.i18n.getMessage('@@extension_id') +
+			// 	'/temporary/' +
+			// 	fileName;
+			// chrome.downloads.download(
+			// 	{
+			// 		url: filePath
+			// 	},
+			// 	function() {
+			// 		// If there was an error, just open the screenshot in a tab.
+			// 		// This happens in incognito mode where extension cannot access filesystem.
+			// 		if (chrome.runtime.lastError) {
+			// 			window.open(filePath);
+			// 		}
+			// 	}
+			// );
 		}
 
 		function errorHandler(e) {
@@ -1526,30 +1522,31 @@ globalConsoleContainerEl
 
 	function handleDownloadsPermission() {
 		var d = deferred();
-		chrome.permissions.contains(
-			{
-				permissions: ['downloads']
-			},
-			function(result) {
-				if (result) {
-					d.resolve();
-				} else {
-					chrome.permissions.request(
-						{
-							permissions: ['downloads']
-						},
-						function(granted) {
-							if (granted) {
-								trackEvent('fn', 'downloadsPermGiven');
-								d.resolve();
-							} else {
-								d.reject();
-							}
-						}
-					);
-				}
-			}
-		);
+		// chrome.permissions.contains(
+		// 	{
+		// 		permissions: ['downloads']
+		// 	},
+		// 	function(result) {
+		// 		if (result) {
+		// 			d.resolve();
+		// 		} else {
+		// 			chrome.permissions.request(
+		// 				{
+		// 					permissions: ['downloads']
+		// 				},
+		// 				function(granted) {
+		// 					if (granted) {
+		// 						trackEvent('fn', 'downloadsPermGiven');
+		// 						d.resolve();
+		// 					} else {
+		// 						d.reject();
+		// 					}
+		// 				}
+		// 			);
+		// 		}
+		// 	}
+		// );
+		setTimeout(d.resolve, 1);
 		return d.promise;
 	}
 
@@ -1560,42 +1557,49 @@ globalConsoleContainerEl
 			s.textContent =
 				'[class*="hint"]:after, [class*="hint"]:before { display: none!important; }';
 			document.body.appendChild(s);
+			html2canvas(document.querySelector('#demo-frame').contentDocument.documentElement, {
+				onrendered: function(canvas) {
+					var a = document.createElement('a')
+					a.download = titleInput.value
+					a.href = canvas.toDataURL()
+					a.click()
+				}
+			});
+			// function onImgLoad(image) {
+			// 	var c = document.createElement('canvas');
+			// 	var iframeBounds = frame.getBoundingClientRect();
+			// 	c.width = iframeBounds.width;
+			// 	c.height = iframeBounds.height;
+			// 	var ctx = c.getContext('2d');
+			// 	ctx.drawImage(
+			// 		image,
+			// 		iframeBounds.left,
+			// 		iframeBounds.top,
+			// 		iframeBounds.width,
+			// 		iframeBounds.height,
+			// 		0,
+			// 		0,
+			// 		iframeBounds.width,
+			// 		iframeBounds.height
+			// 	);
+			// 	image.removeEventListener('load', onImgLoad);
+			// 	saveScreenshot(c.toDataURL());
+			// }
 
-			function onImgLoad(image) {
-				var c = document.createElement('canvas');
-				var iframeBounds = frame.getBoundingClientRect();
-				c.width = iframeBounds.width;
-				c.height = iframeBounds.height;
-				var ctx = c.getContext('2d');
-				ctx.drawImage(
-					image,
-					iframeBounds.left,
-					iframeBounds.top,
-					iframeBounds.width,
-					iframeBounds.height,
-					0,
-					0,
-					iframeBounds.width,
-					iframeBounds.height
-				);
-				image.removeEventListener('load', onImgLoad);
-				saveScreenshot(c.toDataURL());
-			}
-
-			setTimeout(() => {
-				chrome.tabs.captureVisibleTab(
-					null,
-					{ format: 'png', quality: 100 },
-					function(dataURI) {
-						s.remove();
-						if (dataURI) {
-							var image = new Image();
-							image.src = dataURI;
-							image.addEventListener('load', () => onImgLoad(image, dataURI));
-						}
-					}
-				);
-			}, 50);
+			// setTimeout(() => {
+			// 	// chrome.tabs.captureVisibleTab(
+			// 	// 	null,
+			// 	// 	{ format: 'png', quality: 100 },
+			// 	// 	function(dataURI) {
+			// 	// 		s.remove();
+			// 	// 		if (dataURI) {
+			// 	// 			var image = new Image();
+			// 	// 			image.src = dataURI;
+			// 	// 			image.addEventListener('load', () => onImgLoad(image, dataURI));
+			// 	// 		}
+			// 	// 	}
+			// 	// );
+			// }, 50);
 
 			trackEvent('ui', 'takeScreenshotBtnClick');
 		});
@@ -1644,7 +1648,7 @@ globalConsoleContainerEl
 			utils.log(settingName, el.type === 'checkbox' ? el.checked : el.value);
 			prefs[settingName] = el.type === 'checkbox' ? el.checked : el.value;
 			obj[settingName] = prefs[settingName];
-			chrome.storage.sync.set(obj, function() {
+			GlobalStorage.sync.set(obj, function() {
 				alertsService.add('Setting saved');
 			});
 			trackEvent('ui', 'updatePref-' + settingName, prefs[settingName]);
@@ -1663,7 +1667,7 @@ globalConsoleContainerEl
 
 		// Replace correct css file in LINK tags's href
 		editorThemeLinkTag.href =
-			'/lib/codemirror/theme/' + prefs.editorTheme + '.css';
+			'./lib/codemirror/theme/' + prefs.editorTheme + '.css';
 		fontStyleTag.textContent = fontStyleTemplate.textContent.replace(
 			/fontname/g,
 			(prefs.editorFont === 'other'
@@ -1936,7 +1940,7 @@ globalConsoleContainerEl
 			) {
 				hasSeenNotifications = true;
 				notificationsBtn.classList.remove('has-new');
-				chrome.storage.sync.set(
+				GlobalStorage.sync.set(
 					{
 						lastSeenVersion: version
 					},
@@ -2216,7 +2220,7 @@ globalConsoleContainerEl
 			$('#demo-frame').classList.remove('pointer-none');
 		});
 
-		chrome.storage.local.get(
+		GlobalStorage.local.get(
 			{
 				layoutMode: 1,
 				code: ''
@@ -2231,7 +2235,7 @@ globalConsoleContainerEl
 		);
 
 		// Get synced `preserveLastCode` setting to get back last code (or not).
-		chrome.storage.sync.get(
+		GlobalStorage.sync.get(
 			{
 				preserveLastCode: true,
 				replaceNewTab: false,
@@ -2258,7 +2262,7 @@ globalConsoleContainerEl
 				if (result.preserveLastCode && lastCode) {
 					unsavedEditCount = 0;
 					if (lastCode.id) {
-						chrome.storage.local.get(lastCode.id, function(itemResult) {
+						GlobalStorage.local.get(lastCode.id, function(itemResult) {
 							utils.log('Load item ', lastCode.id);
 							currentItem = itemResult[lastCode.id];
 							refreshEditor();
@@ -2298,7 +2302,7 @@ globalConsoleContainerEl
 		);
 
 		// Check for new version notifications
-		chrome.storage.sync.get(
+		GlobalStorage.sync.get(
 			{
 				lastSeenVersion: ''
 			},
@@ -2310,7 +2314,7 @@ globalConsoleContainerEl
 						trackEvent('ui', 'onboardModalSeen', version);
 						document.cookie = 'onboarded=1';
 					}
-					chrome.storage.sync.set(
+					GlobalStorage.sync.set(
 						{
 							lastSeenVersion: version
 						},
@@ -2318,7 +2322,7 @@ globalConsoleContainerEl
 					);
 					// set some initial preferences on closing the onboard modal
 					utils.once(document, 'overlaysClosed', function() {
-						chrome.storage.sync.set(
+						GlobalStorage.sync.set(
 							{
 								replaceNewTab: onboardShowInTabOptionBtn.classList.contains(
 									'selected'

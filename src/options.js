@@ -1,6 +1,7 @@
-// Restores preferences from chrome.storage.
+/* global GlobalStorage */
+// Restores preferences from GlobalStorage.
 function restoreOptions() {
-	chrome.storage.sync.get(
+	GlobalStorage.sync.get(
 		{
 			preserveLastCode: true,
 			replaceNewTab: false
@@ -17,7 +18,7 @@ function saveOptions(e) {
 	var preserveLastCode = document.forms.optionsForm.preserveLastCode.checked;
 	var replaceNewTab = document.forms.optionsForm.replaceNewTab.checked;
 
-	chrome.storage.sync.set(
+	GlobalStorage.sync.set(
 		{
 			preserveLastCode: preserveLastCode,
 			replaceNewTab: replaceNewTab
