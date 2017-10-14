@@ -1488,7 +1488,7 @@ function pathToRegexp (path, keys, options) {
 });
 toolbox.options.debug = false;
 const VERSION = '1';
-const PREFIX = 'kiss';
+const PREFIX = 'web-maker';
 
 const CACHE_NAME = `${PREFIX}-v${VERSION}`;
 const PWA_OPTION = {

@@ -1,0 +1,14 @@
+{
+  "name": "web-maker",
+  "short_name": "web-maker",
+  "start_url": "./",
+  "display": "standalone",
+	"background_color": "#fff",
+	"theme_color": "#252637",
+  "description": "A blazing fast & offline web playground in your browser",
+  "icons": [{
+		"src": "./icon-144.png",
+    "sizes": "144x144",
+    "type": "image/png"
+	}]
+}
