@@ -1383,25 +1383,22 @@ globalConsoleContainerEl, GlobalStorage, html2canvas
 	};
 
 	scope.takeScreenshot = function(e) {
-		handleDownloadsPermission().then(() => {
-			// Hide tooltips so that they don't show in the screenshot
-			var s = document.createElement('style');
-			s.textContent =
-				'[class*="hint"]:after, [class*="hint"]:before { display: none!important; }';
-			document.body.appendChild(s);
-			html2canvas(document.querySelector('#demo-frame').contentDocument.documentElement, {
-				onrendered: function(canvas) {
-					var a = document.createElement('a')
-					a.download = titleInput.value
-					a.href = canvas.toDataURL()
-					document.body.appendChild(a);
-					a.click()
-					a.remove()
-				}
-			});
-			trackEvent('ui', 'takeScreenshotBtnClick');
+		// Hide tooltips so that they don't show in the screenshot
+		var s = document.createElement('style');
+		s.textContent =
+			'[class*="hint"]:after, [class*="hint"]:before { display: none!important; }';
+		document.body.appendChild(s);
+		html2canvas(document.querySelector('#demo-frame').contentDocument.documentElement, {
+			onrendered: function(canvas) {
+				var a = document.createElement('a')
+				a.download = titleInput.value
+				a.href = canvas.toDataURL()
+				document.body.appendChild(a);
+				a.click()
+				a.remove()
+			}
 		});
-
+		trackEvent('ui', 'takeScreenshotBtnClick');
 		e.preventDefault();
 	};
 
