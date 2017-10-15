@@ -18,7 +18,7 @@
 
 			setTimeout(function() {
 				callback(values);
-			}, 1);
+			}, 100);
 		},
 		remove: function(key, callback) {
 			localStorage.removeItem(key);
